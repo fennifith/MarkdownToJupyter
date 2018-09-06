@@ -5,6 +5,10 @@ const _reader = require("readline"),
 	_fs = require("fs"),
 	_child = require("child_process");
 
+const _extensions = {
+	python: "ipynb"	
+};
+
 const _kernels = {
 	python: {
 		display_name: "Python 3",
@@ -28,10 +32,35 @@ const _languages = {
 	}	
 };
 
+const _executions = {
+	python: function(commands) {
+		console.log("--------------");
+		for (let i = 0; i < commands.length; i++) {
+			console.log(">   " + commands[i].substring(0, commands[i].length - 1));
+		}
+
+		_fs.writeFileSync(".temp.py", commands.join(""));
+		let process = _child.spawnSync("python", [".temp.py"]);
+
+		console.log("--- output ---");
+		let out = process.stdout.toString("utf8");
+		out = out.substring(out, out.length - 1);
+		console.log(out);
+		console.log("--------------\n");
+
+		let outarr = out.split("\n");
+		for (let i = 0; i < outarr.length; i++) {
+			outarr[i] += "\n";
+		}
+
+		return outarr;
+	}
+};
+
 let language = "python";
 
 let mdFilePath = process.argv[2];
-let outputFilePath = mdFilePath.replace(/(.md)/g, ".ipynb");
+let outputFilePath = mdFilePath.replace(/(.md)/g, "." + _extensions[language]);
 if (process.argv[3])
 	outputFilePath = process.argv[3];
 
@@ -65,25 +94,8 @@ function addMdCell(commands) {
 
 function addCodeCell(commands) {
 	const pos = output.cells.length;
-	console.log("Executing python in cell " + pos + "...");
-	console.log("--------------");
-	for (let i = 0; i < commands.length; i++) {
-		console.log(">   " + commands[i].substring(0, commands[i].length - 1));
-	}
-
-	_fs.writeFileSync(".temp.py", commands.join(""));
-	let process = _child.spawnSync("python", [".temp.py"]);
-
-	console.log("--- output ---");
-	let out = process.stdout.toString("utf8");
-	out = out.substring(out, out.length - 1);
-	console.log(out);
-	console.log("--------------\n");
-
-	let outarr = out.split("\n");
-	for (let i = 0; i < outarr.length; i++) {
-		outarr[i] += "\n";
-	}
+	console.log("Executing " + language + " in cell " + pos + "...");
+	let outarr = _executions[language](commands);
 
 	output.cells.push({
 		cell_type: "code",
