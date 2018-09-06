@@ -1,5 +1,6 @@
 const _reader = require("readline"),
-	_fs = require("fs");
+	_fs = require("fs")
+	_child = require("child_process");
 
 const _kernels = {
 	python: {
@@ -23,15 +24,6 @@ const _languages = {
 		version: "3.5.2"
 	}	
 };
-
-const _executions = {
-	python: function(commands) {
-		for (let i = 0; i < commands.length; i++) {
-			console.log("command " + commands[i]);
-		}
-		return [];
-	}
-}
 
 let language = "python";
 
@@ -69,11 +61,35 @@ function addMdCell(commands) {
 }
 
 function addCodeCell(commands) {
+	const pos = output.cells.length;
+	console.log("\nExecuting python in block " + pos + "...");
+	console.log("---");
+	console.log(commands.join("\n"));
+
+	_fs.mkdirSync(".temp");
+	_fs.writeFileSync(".temp/script.py", commands.join("\n"));
+	let process = _child.spawnSync("python", [".temp/script.py"]);
+	let out = process.stdout.toString("utf8");
+	out = out.substring(out, out.length - 1);
+
+	console.log("--- OUTPUT ---");
+	console.log(out);
+	console.log("---");
+
+	let outarr = out.split("\n");
+	for (let i = 0; i < outarr.length; i++) {
+		outarr[i] += "\n";
+	}
+
 	output.cells.push({
 		cell_type: "code",
 		execution_count: codes++,
 		metadata: {},
-		outputs: _executions[language](commands),
+		outputs: [{
+			name: "stdout",
+			output_type: "stream",
+			text: outarr		
+		}],
 		source: commands
 	});
 }
@@ -81,8 +97,10 @@ function addCodeCell(commands) {
 let content = _fs.readFileSync(mdFilePath, "utf8").split("\n");
 for (let i = 0; i < content.length; i++) {
 	if (content[i].startsWith("```")) {
-		if (code) 
+		if (code && commands.length > 0) 
 			addCodeCell(commands);
+		else if (commands.length > 0)
+			addMdCell(commands);
 		
 		commands = [];
 		code = !code;
