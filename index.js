@@ -66,7 +66,9 @@ function addCodeCell(commands) {
 	console.log("---");
 	console.log(commands.join("\n"));
 
-	_fs.mkdirSync(".temp");
+	if (!_fs.statSync(".temp"))
+		_fs.mkdirSync(".temp");
+	
 	_fs.writeFileSync(".temp/script.py", commands.join("\n"));
 	let process = _child.spawnSync("python", [".temp/script.py"]);
 	let out = process.stdout.toString("utf8");
