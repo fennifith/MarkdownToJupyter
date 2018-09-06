@@ -1,5 +1,8 @@
+#!/usr/bin/env node
+'use strict';
+
 const _reader = require("readline"),
-	_fs = require("fs")
+	_fs = require("fs"),
 	_child = require("child_process");
 
 const _kernels = {
@@ -62,21 +65,20 @@ function addMdCell(commands) {
 
 function addCodeCell(commands) {
 	const pos = output.cells.length;
-	console.log("\nExecuting python in block " + pos + "...");
-	console.log("---");
-	console.log(commands.join("\n"));
+	console.log("Executing python in cell " + pos + "...");
+	console.log("--------------");
+	for (let i = 0; i < commands.length; i++) {
+		console.log(">   " + commands[i].substring(0, commands[i].length - 1));
+	}
 
-	if (!_fs.statSync(".temp"))
-		_fs.mkdirSync(".temp");
-	
-	_fs.writeFileSync(".temp/script.py", commands.join("\n"));
-	let process = _child.spawnSync("python", [".temp/script.py"]);
+	_fs.writeFileSync(".temp.py", commands.join(""));
+	let process = _child.spawnSync("python", [".temp.py"]);
+
+	console.log("--- output ---");
 	let out = process.stdout.toString("utf8");
 	out = out.substring(out, out.length - 1);
-
-	console.log("--- OUTPUT ---");
 	console.log(out);
-	console.log("---");
+	console.log("--------------\n");
 
 	let outarr = out.split("\n");
 	for (let i = 0; i < outarr.length; i++) {
@@ -117,6 +119,9 @@ if (commands.length > 0) {
 		addCodeCell(commands);
 	else addMdCell(commands);
 }
+
+if (_fs.existsSync(".temp.py"))
+	_fs.unlinkSync(".temp.py");
 
 _fs.writeFileSync(outputFilePath, JSON.stringify(output, null, 2));
 console.log("Conversion successful! Output file at " + outputFilePath);
