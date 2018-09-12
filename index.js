@@ -59,8 +59,8 @@ const _executions = {
 
 let language = "python";
 
-let mdFilePath = process.argv[2];
-let outputFilePath = mdFilePath.replace(/(.md)/g, "." + _extensions[language]);
+let inputFilePath = process.argv[2];
+let outputFilePath = inputFilePath.replace(/(.md)/g, "." + _extensions[language]);
 if (process.argv[3])
 	outputFilePath = process.argv[3];
 
@@ -80,60 +80,81 @@ let output = {
 	nbformat_minor: 2
 };
 
-let commands = [];
-let code = false;
-let codes = 0;
+if (inputFilePath.endsWith(".md")) {
+	let commands = [];
+	let code = false;
+	let codes = 0;
 
-function addMdCell(commands) {
-	output.cells.push({
-		cell_type: "markdown",
-		metadata: {},
-		source: commands	
-	});
-}
+	let addMdCell = function(commands) {
+		output.cells.push({
+			cell_type: "markdown",
+			metadata: {},
+			source: commands	
+		});
+	};
 
-function addCodeCell(commands) {
-	const pos = output.cells.length;
-	console.log("Executing " + language + " in cell " + pos + "...");
-	let outarr = _executions[language](commands);
+	let addCodeCell = function(commands) {
+		const pos = output.cells.length;
+		console.log("Executing " + language + " in cell " + pos + "...");
+		let outarr = _executions[language](commands);
+	
+		output.cells.push({
+			cell_type: "code",
+			execution_count: codes++,
+			metadata: {},
+			outputs: [{
+				name: "stdout",
+				output_type: "stream",
+				text: outarr		
+			}],
+			source: commands
+		});
+	};
 
-	output.cells.push({
-		cell_type: "code",
-		execution_count: codes++,
-		metadata: {},
-		outputs: [{
-			name: "stdout",
-			output_type: "stream",
-			text: outarr		
-		}],
-		source: commands
-	});
-}
-
-let content = _fs.readFileSync(mdFilePath, "utf8").split("\n");
-for (let i = 0; i < content.length; i++) {
-	if (content[i].startsWith("```")) {
-		if (code && commands.length > 0) 
-			addCodeCell(commands);
-		else if (commands.length > 0)
-			addMdCell(commands);
+	let content = _fs.readFileSync(inputFilePath, "utf8").split("\n");
+	for (let i = 0; i < content.length; i++) {
+		if (content[i].startsWith("```")) {
+			if (code && commands.length > 0) 
+				addCodeCell(commands);
+			else if (commands.length > 0)
+				addMdCell(commands);
 		
-		commands = [];
-		code = !code;
-	} else if (!code && content[i].startsWith("#") && commands.length > 0) {
-		addMdCell(commands);
-		commands = [];
-	} else commands.push(content[i] + "\n");
+			commands = [];
+			code = !code;
+		} else if (!code && content[i].startsWith("#") && commands.length > 0) {
+			addMdCell(commands);
+			commands = [];
+		} else commands.push(content[i] + "\n");
+	}
+
+	if (commands.length > 0) {
+		if (code)
+			addCodeCell(commands);
+		else addMdCell(commands);
+	}
+
+	if (_fs.existsSync(".temp.py"))
+		_fs.unlinkSync(".temp.py");
+
+	_fs.writeFileSync(outputFilePath, JSON.stringify(output, null, 2));
+	console.log("Conversion successful! Output file at " + outputFilePath);
+} else if (inputFilePath.endsWith(".ipynb")) {
+	outputFilePath = inputFilePath.replace(/(.ipynb)/g, ".md");
+
+	let input = JSON.parse(_fs.readFileSync(inputFilePath, "utf8"));
+	let output = "";
+	for (let i = 0; i < input.cells.length; i++) {
+		if (input.cells[i].cell_type == "markdown") {
+			output += input.cells[i].source.join("") + "\n";
+		} else if (input.cells[i].cell_type == "code") {
+			output += "```\n" + input.cells[i].source.join("") + "```\n";
+			if (input.cells[i].outputs[0])
+				output += "\n##### Outputs...\n\n> " + input.cells[i].outputs[0].text.join("> ") + "\n";
+		}
+	}
+
+	_fs.writeFileSync(outputFilePath, output);
+	console.log("Conversion successful! Output file at " + outputFilePath);
+} else {
+	console.log("Invalid file type...");
 }
-
-if (commands.length > 0) {
-	if (code)
-		addCodeCell(commands);
-	else addMdCell(commands);
-}
-
-if (_fs.existsSync(".temp.py"))
-	_fs.unlinkSync(".temp.py");
-
-_fs.writeFileSync(outputFilePath, JSON.stringify(output, null, 2));
-console.log("Conversion successful! Output file at " + outputFilePath);
